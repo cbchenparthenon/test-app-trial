@@ -326,20 +326,9 @@ if run_export:
 
         # Apply location provider logic (same)
         if location_provider_ids:
-            if provider_subset_tech:
-                    print(combined_provider_subset_df_for_state.columns)
-                    # Print the unique values in the 'technology' column
-                    print("\nUnique technology values in the data:")
-                    print(combined_provider_subset_df_for_state['technology'].unique())
-                    loc_ids = combined_provider_subset_df_for_state.filter(
-                        (combined_provider_subset_df_for_state['provider_id'].is_in(location_provider_ids)) &
-                        (combined_provider_subset_df_for_state['technology'].is_in(provider_subset_tech))
-                    )['location_id'].unique()
-
-            else:
-                loc_ids = combined_provider_subset_df_for_state.filter(
-                    combined_provider_subset_df_for_state['provider_id'].is_in(location_provider_ids)
-                )['location_id'].unique()
+            loc_ids = combined_provider_subset_df_for_state.filter(
+                combined_provider_subset_df_for_state['provider_id'].is_in(location_provider_ids)
+            )['location_id'].unique()
 
             combined_raw_df_for_state = combined_raw_df_for_state.filter(
                 combined_raw_df_for_state["location_id"].is_in(loc_ids)
