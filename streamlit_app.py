@@ -294,23 +294,51 @@ if run_export:
                     st.warning(f"Could not download data for file_id = {file_id} ({r2.status_code}).")
                     st.code(r2.text)
 
+            # Re-download a copy of the location data for the provider of interest's tech footprint
+            if location_provider_ids and provider_subset_tech:
+                combined_provider_subset_df_for_state = pl.DataFrame()
+                for tech_of_interest in provider_subset_tech:
+                    df1_filtered = df1_fixed_broadband.filter(df1_fixed_broadband['state_name'] == state)
+                    df1_filtered = df1_filtered.filter(df1_filtered['technology_code_desc'] == tech_of_interest)
+
+                    for row in df1_filtered.iter_rows(named=True):
+                        file_id = row['file_id']
+                        r2 = requests.get(f'{base_url}/downloads/downloadFile/availability/{file_id}/1', headers=headers)
+                        if r2.status_code == 200:
+                            # Unzip the content
+                            print(f"Re-downloading data for file_id = {file_id} ({tech_of_interest}) for provider subset...")
+                            with zipfile.ZipFile(io.BytesIO(r2.content)) as z:
+                                with z.open(z.namelist()[0]) as f:
+                                    df_raw_subset = pl.read_csv(f)
+
+                            # Combine raw data for all technologies before applying filters
+                            combined_provider_subset_df_for_state = combined_provider_subset_df_for_state.vstack(df_raw_subset)
+                    else:
+                        print(f"Could not download data for file_id = {file_id} ({r2.status_code}).")
+                        print(r2.text)
+
         # Apply filters (same)
         if resi_choice == "y":
             combined_raw_df_for_state = combined_raw_df_for_state.filter(
                 combined_raw_df_for_state["business_residential_code"] != "B"
             )
+            combined_provider_subset_df_for_state = combined_provider_subset_df_for_state.filter(combined_provider_subset_df_for_state["business_residential_code"] != "B")
 
         # Apply location provider logic (same)
         if location_provider_ids:
             if provider_subset_tech:
-                loc_ids = combined_raw_df_for_state.filter(
-                    (combined_raw_df_for_state['provider_id'].is_in(location_provider_ids)) &
-                    (combined_raw_df_for_state['technology'].is_in(provider_subset_tech))
-                )['location_id'].unique()
+                    print(combined_provider_subset_df_for_state.columns)
+                    # Print the unique values in the 'technology' column
+                    print("\nUnique technology values in the data:")
+                    print(combined_provider_subset_df_for_state['technology'].unique())
+                    loc_ids = combined_provider_subset_df_for_state.filter(
+                        (combined_provider_subset_df_for_state['provider_id'].is_in(location_provider_ids)) &
+                        (combined_provider_subset_df_for_state['technology'].is_in(provider_subset_tech))
+                    )['location_id'].unique()
 
             else:
-                loc_ids = combined_raw_df_for_state.filter(
-                    combined_raw_df_for_state['provider_id'].is_in(location_provider_ids)
+                loc_ids = combined_provider_subset_df_for_state.filter(
+                    combined_provider_subset_df_for_state['provider_id'].is_in(location_provider_ids)
                 )['location_id'].unique()
 
             combined_raw_df_for_state = combined_raw_df_for_state.filter(
