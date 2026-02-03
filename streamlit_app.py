@@ -305,7 +305,7 @@ if run_export:
             if provider_subset_tech:
                 loc_ids = combined_raw_df_for_state.filter(
                     (combined_raw_df_for_state['provider_id'].is_in(location_provider_ids)) &
-                    (combined_raw_df_for_state['technology_code_desc'].is_in(provider_subset_tech))
+                    (combined_raw_df_for_state['technology'].is_in(provider_subset_tech))
                 )['location_id'].unique()
 
             else:
