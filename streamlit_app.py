@@ -67,7 +67,7 @@ base_url = "https://bdc.fcc.gov/api/public/map/"
 st.set_page_config(page_title="FCC BDC Availability Export (Polars)", layout="wide")
 st.title("FCC BDC Availability Export (Streamlit)")
 
-headers = {"username": username, "hash_value": hash_value}
+headers = _headers_from_secrets()
 
 # Helper to parse comma-separated ints (preserving your int conversion behavior)
 def parse_int_list(s: str):
@@ -87,7 +87,7 @@ def parse_str_list(s: str):
 # Step 1: Get as-of dates (same API call)
 # -----------------------------
 st.subheader("1) Pick an as-of date (availability)")
-_headers_from_secrets()
+
 get_dates = st.button("Fetch available as-of dates")
 
 if get_dates:
