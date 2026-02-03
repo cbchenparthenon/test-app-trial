@@ -32,6 +32,22 @@ def _headers_from_secrets() -> dict:
         "hash_value": hash_value or "",
     }
 
+
+def _block_geoid_prefix_len(level: str) -> int:
+    """15-digit Census block GEOID rollups by prefix length."""
+    level = (level or "").lower().strip()
+    if level == "state":
+        return 2
+    if level == "county":
+        return 5
+    if level == "tract":
+        return 11
+    if level in ("cbg", "block group", "blockgroup"):
+        return 12
+    # default: block (no rollup)
+    return 15
+
+
 pl.Config.set_tbl_rows(100)
 
 # -----------------------------
@@ -379,6 +395,46 @@ if run_export:
     df_merged = pl.DataFrame()
     for state_name in dfs_dict:
         df_merged = df_merged.vstack(dfs_dict[state_name])
+
+    # -----------------------------
+    # Optional: Roll up by geography (at the very end, per request)
+    # block_geoid is a 15-digit Census Block GEOID
+    # -----------------------------
+    st.subheader("5) Optional rollup by geography")
+
+    rollup_choice = st.radio(
+        "Do you want to roll up block-level GEOIDs to a higher geography?",
+        options=["n", "y"],
+        horizontal=True,
+        index=0,
+    )
+
+    rollup_level = None
+    if rollup_choice == "y":
+        rollup_level = st.selectbox(
+            "Select rollup geography",
+            options=["State", "County", "Tract", "CBG"],
+            index=1,
+        )
+
+        # Preserve existing grouping keys (provider_id, speed tier, etc.)
+        # and sum the location counts over the rolled-up geography.
+        value_col = "location_id"  # created by your n_unique aggregation
+        if "block_geoid" not in df_merged.columns:
+            st.error('Cannot roll up because "block_geoid" column is missing in the output.')
+            st.stop()
+        if value_col not in df_merged.columns:
+            st.error('Cannot roll up because the expected count column "location_id" is missing in the output.')
+            st.stop()
+
+        prefix_len = _block_geoid_prefix_len(rollup_level)
+
+        df_merged = df_merged.with_columns(
+            pl.col("block_geoid").cast(pl.Utf8).str.slice(0, prefix_len).alias("block_geoid")
+        )
+
+        group_keys = [c for c in df_merged.columns if c not in ["block_geoid", value_col]]
+        df_merged = df_merged.group_by(group_keys + ["block_geoid"]).agg(pl.col(value_col).sum())
 
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
     tech_names_combined = "_".join([tech.replace(" ", "") for tech in tech_of_interest_list])
