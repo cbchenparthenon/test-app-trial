@@ -271,6 +271,13 @@ rollup_choice = st.radio(
     horizontal=True,
     index=0,
 )
+rollup_level = None
+if rollup_choice == "y":
+    rollup_level = st.selectbox(
+        "Select rollup geography",
+        options=["State", "County", "Tract", "CBG"],
+        index=1,
+    )
 
 # -----------------------------
 # Step 4: Run (same loops & logic; just add progress + download)
@@ -411,13 +418,7 @@ if run_export:
     # -----------------------------
     
 
-    rollup_level = None
     if rollup_choice == "y":
-        rollup_level = st.selectbox(
-            "Select rollup geography",
-            options=["State", "County", "Tract", "CBG"],
-            index=1,
-        )
 
         # Preserve existing grouping keys (provider_id, speed tier, etc.)
         # and sum the location counts over the rolled-up geography.
