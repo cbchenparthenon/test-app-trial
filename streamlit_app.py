@@ -402,6 +402,53 @@ if run_export:
                 combined_raw_df_for_state["block_geoid"].is_in(user_cb_geoids)
             )
 
+        # -----------------------------
+        # If rollup requested, roll up *within each state before vstack* to keep the merged file from getting huge.
+        # Then pivot once at the very end (after all states are stacked).
+        # -----------------------------
+        if rollup_choice == "y":
+            value_col = "location_id"  # created by your n_unique aggregation
+            if "block_geoid" not in combined_raw_df_for_state.columns:
+                st.error('Cannot roll up because "block_geoid" column is missing in the state output.')
+                st.stop()
+            if value_col not in combined_raw_df_for_state.columns:
+                st.error('Cannot roll up because the expected count column "location_id" is missing in the state output.')
+                st.stop()
+
+            prefix_len = _block_geoid_prefix_len(rollup_level)
+            combined_raw_df_for_state = combined_raw_df_for_state.with_columns(
+                pl.col("block_geoid").cast(pl.Utf8).str.slice(0, prefix_len).alias("block_geoid")
+            )
+
+            # Pivot is potentially memory intensive; we keep data long while rolling up.
+            # Only pivot later if needed.
+            pivot_needed = (group_on_technology == "n") or (group_on_speed == "y")
+
+            # If provider_id and/or speed exist, pre-aggregate long-form per state to reduce rows.
+            if pivot_needed and ("provider_id" in combined_raw_df_for_state.columns):
+                # provider + speed case: create combined key
+                if (group_on_technology == "n") and (group_on_speed == "y") and ("max_advertised_download_speed" in combined_raw_df_for_state.columns):
+                    combined_raw_df_for_state = combined_raw_df_for_state.with_columns(
+                        (
+                            pl.col("provider_id").cast(pl.Utf8)
+                            + pl.lit("_")
+                            + pl.col("max_advertised_download_speed").cast(pl.Utf8)
+                        ).alias("provider_speed")
+                    )
+                    combined_raw_df_for_state = combined_raw_df_for_state.group_by(["block_geoid", "provider_speed"]).agg(
+                        pl.col(value_col).sum()
+                    )
+                else:
+                    # provider-only case
+                    combined_raw_df_for_state = combined_raw_df_for_state.group_by(["block_geoid", "provider_id"]).agg(
+                        pl.col(value_col).sum()
+                    )
+            else:
+                # no pivot required (or no provider info): just roll up by geography
+                combined_raw_df_for_state = combined_raw_df_for_state.group_by(["block_geoid"]).agg(
+                    pl.col(value_col).sum()
+                )
+
         dfs_dict[state] = combined_raw_df_for_state
         status.write(f"Data for {state} processed.")
 
@@ -413,31 +460,35 @@ if run_export:
         df_merged = df_merged.vstack(dfs_dict[state_name])
 
     # -----------------------------
-    # Optional: Roll up by geography (at the very end, per request)
-    # block_geoid is a 15-digit Census Block GEOID
+    # If rollup requested, we've already rolled up per-state before stacking.
+    # Now (at the very end), pivot everything if needed.
     # -----------------------------
-    
 
     if rollup_choice == "y":
+        value_col = "location_id"
 
-        # Preserve existing grouping keys (provider_id, speed tier, etc.)
-        # and sum the location counts over the rolled-up geography.
-        value_col = "location_id"  # created by your n_unique aggregation
-        if "block_geoid" not in df_merged.columns:
-            st.error('Cannot roll up because "block_geoid" column is missing in the output.')
-            st.stop()
-        if value_col not in df_merged.columns:
-            st.error('Cannot roll up because the expected count column "location_id" is missing in the output.')
-            st.stop()
+        # Determine whether we should pivot based on the user's grouping choices.
+        pivot_needed = (group_on_technology == "n") or (group_on_speed == "y")
 
-        prefix_len = _block_geoid_prefix_len(rollup_level)
-
-        df_merged = df_merged.with_columns(
-            pl.col("block_geoid").cast(pl.Utf8).str.slice(0, prefix_len).alias("block_geoid")
-        )
-
-        group_keys = [c for c in df_merged.columns if c not in ["block_geoid", value_col]]
-        df_merged = df_merged.group_by(group_keys + ["block_geoid"]).agg(pl.col(value_col).sum())
+        if pivot_needed:
+            # provider+speed pivots on provider_speed if present; else provider_id
+            if "provider_speed" in df_merged.columns:
+                df_merged = df_merged.pivot(
+                    values=value_col,
+                    index="block_geoid",
+                    columns="provider_speed",
+                    aggregate_function="sum",
+                )
+            elif "provider_id" in df_merged.columns:
+                df_merged = df_merged.pivot(
+                    values=value_col,
+                    index="block_geoid",
+                    columns="provider_id",
+                    aggregate_function="sum",
+                )
+            else:
+                # Nothing to pivot on; keep as-is
+                pass
 
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
     tech_names_combined = "_".join([tech.replace(" ", "") for tech in tech_of_interest_list])
