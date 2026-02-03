@@ -295,27 +295,30 @@ if run_export:
                     st.code(r2.text)
 
             # Re-download a copy of the location data for the provider of interest's tech footprint
-            if location_provider_ids and provider_subset_tech:
+            if include_location_providers == "y":
                 combined_provider_subset_df_for_state = pl.DataFrame()
-                for tech_of_interest in provider_subset_tech:
-                    df1_filtered = df1_fixed_broadband.filter(df1_fixed_broadband['state_name'] == state)
-                    df1_filtered = df1_filtered.filter(df1_filtered['technology_code_desc'] == tech_of_interest)
-
-                    for row in df1_filtered.iter_rows(named=True):
-                        file_id = row['file_id']
-                        r2 = requests.get(f'{base_url}/downloads/downloadFile/availability/{file_id}/1', headers=headers)
-                        if r2.status_code == 200:
-                            # Unzip the content
-                            print(f"Re-downloading data for file_id = {file_id} ({tech_of_interest}) for provider subset...")
-                            with zipfile.ZipFile(io.BytesIO(r2.content)) as z:
-                                with z.open(z.namelist()[0]) as f:
-                                    df_raw_subset = pl.read_csv(f)
-
-                            # Combine raw data for all technologies before applying filters
-                            combined_provider_subset_df_for_state = combined_provider_subset_df_for_state.vstack(df_raw_subset)
-                    else:
-                        print(f"Could not download data for file_id = {file_id} ({r2.status_code}).")
-                        print(r2.text)
+                if include_provider_subset == "y":
+                    for tech_of_interest in provider_subset_tech:
+                        df1_filtered = df1_fixed_broadband.filter(df1_fixed_broadband['state_name'] == state)
+                        df1_filtered = df1_filtered.filter(df1_filtered['technology_code_desc'] == tech_of_interest)
+    
+                        for row in df1_filtered.iter_rows(named=True):
+                            file_id = row['file_id']
+                            r2 = requests.get(f'{base_url}/downloads/downloadFile/availability/{file_id}/1', headers=headers)
+                            if r2.status_code == 200:
+                                # Unzip the content
+                                print(f"Re-downloading data for file_id = {file_id} ({tech_of_interest}) for provider subset...")
+                                with zipfile.ZipFile(io.BytesIO(r2.content)) as z:
+                                    with z.open(z.namelist()[0]) as f:
+                                        df_raw_subset = pl.read_csv(f)
+    
+                                # Combine raw data for all technologies before applying filters
+                                combined_provider_subset_df_for_state = combined_provider_subset_df_for_state.vstack(df_raw_subset)
+                            else:
+                                print(f"Could not download data for file_id = {file_id} ({r2.status_code}).")
+                                print(r2.text)
+                else:
+                    combined_provider_subset_df_for_state = combined_raw_df_for_state
 
         # Apply filters (same)
         if resi_choice == "y":
