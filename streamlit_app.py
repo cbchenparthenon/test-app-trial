@@ -263,10 +263,19 @@ if cb_choice == "y":
         user_cb_geoids = pl.read_csv(uploaded_cb)["block_geoid"].to_list()
         st.success(f"Loaded {len(user_cb_geoids)} block_geoids from uploaded file.")
 
+st.subheader("4) Optional rollup by geography")
+
+rollup_choice = st.radio(
+    "Do you want to roll up block-level GEOIDs to a higher geography?",
+    options=["n", "y"],
+    horizontal=True,
+    index=0,
+)
+
 # -----------------------------
 # Step 4: Run (same loops & logic; just add progress + download)
 # -----------------------------
-st.subheader("4) Run export")
+st.subheader("5) Run export")
 
 run_export = st.button(
     "Run export",
@@ -400,14 +409,7 @@ if run_export:
     # Optional: Roll up by geography (at the very end, per request)
     # block_geoid is a 15-digit Census Block GEOID
     # -----------------------------
-    st.subheader("5) Optional rollup by geography")
-
-    rollup_choice = st.radio(
-        "Do you want to roll up block-level GEOIDs to a higher geography?",
-        options=["n", "y"],
-        horizontal=True,
-        index=0,
-    )
+    
 
     rollup_level = None
     if rollup_choice == "y":
