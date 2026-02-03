@@ -87,7 +87,7 @@ def parse_str_list(s: str):
 # Step 1: Get as-of dates (same API call)
 # -----------------------------
 st.subheader("1) Pick an as-of date (availability)")
-
+_headers_from_secrets()
 get_dates = st.button("Fetch available as-of dates")
 
 if get_dates:
