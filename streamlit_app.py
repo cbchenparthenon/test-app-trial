@@ -209,7 +209,7 @@ if include_location_providers == "y":
     )
 
 include_provider_subset = st.radio(
-    "Define a subset of a provider's footprint based on technology? (e.g., if you want to analyze Verizon's DSL + Fiber footprint only. If you leave this blank, the code will check EVERY technology, so best practice is to define this.",
+    "Define a subset of a provider's footprint based on technology? (e.g., if you want to analyze Verizon's DSL + Fiber footprint only. If you leave this blank, the code will include Cable, Copper, and Fiber, so best practice is to define this.",
     options=["y", "n"],
     horizontal=True,
     index=1,
@@ -300,7 +300,7 @@ if run_export:
                 if include_provider_subset == "y":
                     tech_list = provider_subset_tech
                 else:
-                    tech_list = tech_list_py
+                    tech_list = ["Cable", "Copper", "Fiber to the Premises"]
                 for tech_of_interest in tech_list:
                     df1_filtered = df1_fixed_broadband.filter(df1_fixed_broadband['state_name'] == state)
                     df1_filtered = df1_filtered.filter(df1_filtered['technology_code_desc'] == tech_of_interest)
